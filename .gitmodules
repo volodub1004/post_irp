@@ -1,0 +1,9 @@
+[submodule "cpp_inference_engine/LightGBM"]
+	path = cpp_inference_engine/LightGBM
+	url = https://github.com/microsoft/LightGBM
+[submodule "cpp_inference_engine/catboost"]
+	path = cpp_inference_engine/catboost
+	url = https://github.com/catboost/catboost.git
+[submodule "cpp_inference_engine/rapid_fuzz"]
+	path = cpp_inference_engine/rapid_fuzz
+	url = https://github.com/rapidfuzz/rapidfuzz-cpp.git
