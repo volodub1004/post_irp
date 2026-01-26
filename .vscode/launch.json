@@ -1,0 +1,107 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run All Pytest",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-q",
+        "-v"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Run Pytest Unit Test",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-q",
+        "-v",
+        "-k",
+        "not integration"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Run Pytest Specific File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-q",
+        "-v",
+        "-k",
+        "tests/test_split_ids.py"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Debug etl.pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "etl.pipeline",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Debug pattern_mining.pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pattern_mining.pipeline",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Debug feature_engineering.pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "email_prediction.feature_engineering.pipeline",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Debug email_prediction.pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "email_prediction.pipeline",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Debug C++ Unit Tests",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/cpp_inference_engine/build/tests/test_email_predictor",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/cpp_inference_engine/build",
+      "preLaunchTask": "Build cpp_inference_engine",
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }
+  ]
+}

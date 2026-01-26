@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build cpp_inference_engine",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cmake -S cpp_inference_engine -B cpp_inference_engine/build && cmake --build cpp_inference_engine/build -j"
+      ],
+      "problemMatcher": [],
+      "detail": "Full build via shell chain"
+    },
+  ]
+}

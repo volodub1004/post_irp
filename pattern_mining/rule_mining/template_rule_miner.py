@@ -1,0 +1,264 @@
+import os
+from typing import List, Dict, Any
+from spmf import Spmf
+from pattern_mining.template_encoders import EmailTemplateEncoder
+
+
+class TemplateRuleMiner:
+    """
+    Mines frequent sequential token patterns from tokenized email local-parts using the TRuleGrowth
+    algorithm.
+
+    This class serves as a wrapper around the SPMF implementation of TRuleGrowth. It handles:
+        - Writing token sequences to SPMF-compatible input format
+        - Executing the TRuleGrowth algorithm with user-defined parameters
+        - Parsing and decoding mined sequential rules into human-readable formats
+        - Optionally mapping mined token IDs back to named tokens via a provided encoder
+
+    Args:
+        encoder (EmailTemplateEncoder): Encoder instance used for token ID to token name mapping.
+        spmf_jar_dir (str): Path to the directory containing the `spmf.jar` binary for TRuleGrowth
+            execution.
+        work_dir (str): Temporary working directory for input/output files.
+    """
+
+    def __init__(
+        self,
+        encoder: EmailTemplateEncoder,
+        spmf_jar_dir: str = "",
+        work_dir: str = "spmf_output",
+    ):
+        self.encoder = encoder
+        self.spmf_jar_dir = spmf_jar_dir
+        self.work_dir = work_dir
+        os.makedirs(work_dir, exist_ok=True)
+
+    def _write_input(
+        self, sequences: List[List[int]], filename: str = "input.txt"
+    ) -> str:
+        """
+        Writes a list of token ID sequences to a file in the SPMF format required by TRuleGrowth.
+
+        In this context, each sequence represents the tokenized structure of an email's local-part,
+        and each token (e.g., 'first0', '.', 'last0') occurs in a fixed position — not
+        simultaneously.
+
+        Therefore, each token is treated as its own singleton itemset (one item per time step),
+        and each sequence is a strict ordering of these itemsets.
+
+        Example:
+            Sequence [1, 2, 3] -> "1 -1 2 -1 3 -1 -2"
+
+        Args:
+            sequences (List[List[int]]): A list of tokenized email local-parts,
+                where each sequence is a list of integer token IDs.
+            filename (str): Name of the file to write (relative to the working directory).
+
+        Returns:
+            str: Full path to the written input file.
+
+        Note:
+            Check SPMF Documentation for reasoning here.
+        """
+        path = os.path.join(self.work_dir, filename)
+        os.makedirs(self.work_dir, exist_ok=True)
+
+        with open(path, "w") as f:
+            for seq in sequences:
+                # Each token is written as its own itemset (token -1), followed by -2 to end the
+                # sequence
+                tokens = [f"{token} -1" for token in seq]
+                f.write(" ".join(tokens) + " -2\n")
+
+        return path
+
+    def _run_trulegrowth(
+        self,
+        input_path: str,
+        output_filename: str = "rules.txt",
+        minsup: float = 0.00001,
+        minconf: float = 0.00001,
+        window_size: int = 7,
+    ) -> str:
+        """
+        Executes the TRuleGrowth algorithm using the SPMF Python wrapper.
+
+        This method runs the TRuleGrowth algorithm on a given input sequence file,
+        with specified minimum support, confidence, and sliding window size.
+
+        The output is written to a text file in SPMF format.
+
+        Args:
+            input_path (str): Path to the input file containing tokenized sequences
+                in SPMF-compatible format.
+            output_filename (str): Desired name of the output rules file.
+            minsup (float): Minimum support threshold (as a fraction, e.g., 0.01 = 1%).
+            minconf (float): Minimum confidence threshold (0.0 to 1.0).
+            window_size (int): Maximum number of tokens allowed between LHS and RHS
+                for the rule to be considered valid.
+
+        Returns:
+            str: Path to the generated output file containing mined rules.
+
+        Raises:
+            RuntimeError: If the SPMF runner fails to execute.
+        """
+        # Build path
+        output_path = os.path.join(self.work_dir, output_filename)
+        # Instantiate Spmf, Jar must be saved locally, pip install does not do it automatically
+        spmf_runner = Spmf(
+            algorithm_name="TRuleGrowth",
+            input_direct=False,
+            input_type="file",
+            input_filename=input_path,
+            output_filename=output_path,
+            arguments=[minsup, minconf, window_size],
+            spmf_bin_location_dir=self.spmf_jar_dir,
+        )
+        # Run TRuleGrowth, saves result to file
+        spmf_runner.run()
+        return output_path
+
+    def _parse_rules(self, path: str) -> List[Dict[str, Any]]:
+        """
+        Parses the output of the TRuleGrowth algorithm into structured rule dictionaries.
+
+        This method reads the rules file generated by SPMF and extracts:
+            - LHS and RHS sequences (as lists of integer token IDs)
+            - Support (number of matching sequences)
+            - Confidence (probability that RHS follows LHS within the window)
+
+        The expected format of each rule is:
+            LHS ==> RHS #SUP: <int> #CONF: <float>
+
+        Args:
+            path (str): Path to the output file produced by TRuleGrowth.
+
+        Returns:
+            List[Dict[str, Any]]: A list of rules, where each rule is a dictionary with:
+                - 'lhs': List[int] - left-hand side token IDs
+                - 'rhs': List[int] - right-hand side token IDs
+                - 'support': int - number of matching sequences
+                - 'confidence': float - conditional likelihood of RHS given LHS
+
+        Raises:
+            ValueError: If the file is malformed or contains invalid entries.
+
+        Note:
+            Check SPMF Documentation for reasoning here.
+        """
+        rules = []
+        # Open rules text file
+        with open(path, "r") as f:
+            for line in f:
+                # Must be a new line or metadata if not including this rule delimiter
+                if "==>" not in line:
+                    continue
+
+                try:
+                    # Split lhs and rhs side token
+                    lhs_raw, rhs_meta = line.split("==>")
+                    lhs = [int(x) for x in lhs_raw.strip().split(",") if x]
+
+                    # Split by support and confidence tags
+                    rhs_raw, meta = rhs_meta.strip().split("#SUP:")
+                    rhs = [int(x) for x in rhs_raw.strip().split(",") if x]
+
+                    # Cast support and conf into int and floats
+                    support_str, confidence_str = meta.strip().split("#CONF:")
+                    support = int(support_str.strip())
+                    confidence = float(confidence_str.strip())
+
+                    if not lhs or not rhs:
+                        continue
+
+                    # Append to rules
+                    rules.append(
+                        {
+                            "lhs": lhs,
+                            "rhs": rhs,
+                            "support": support,
+                            "confidence": confidence,
+                        }
+                    )
+
+                # Shouldn't happen, for debugging
+                except Exception as e:
+                    print("FAILED PARSE:", line)
+                    print(e)
+
+        return rules
+
+    def _decode_rule(self, rule: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Converts a rule with integer token IDs into a human-readable token format
+        using the provided EmailTemplateEncoder.
+
+        This is useful for interpreting mined sequential rules by mapping internal token
+        IDs (e.g. 1, 4) back to descriptive tokens (e.g. 'first0', 'last0').
+
+        Args:
+            rule (Dict[str, Any]): A rule dictionary as produced by `_parse_rules()`, with keys:
+                - 'lhs': List[int]
+                - 'rhs': List[int]
+                - 'support': int
+                - 'confidence': float
+
+        Returns:
+            Dict[str, Any]: A rule dictionary with:
+                - 'lhs_tokens': List[str] — decoded LHS tokens
+                - 'rhs_tokens': List[str] — decoded RHS tokens
+                - 'support': int
+                - 'confidence': float
+        """
+        # Use vocab look up from encoder to decode
+        return {
+            "lhs_tokens": [self.encoder.id_to_token[i] for i in rule["lhs"]],
+            "rhs_tokens": [self.encoder.id_to_token[i] for i in rule["rhs"]],
+            "support": rule["support"],
+            "confidence": rule["confidence"],
+        }
+
+    def mine(
+        self,
+        sequences: List[List[int]],
+        minsup: float = 0.01,
+        minconf: float = 0.01,
+        window_size: int = 3,
+        decode: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Runs the full pattern mining pipeline using the TRuleGrowth algorithm.
+
+        This method:
+            - Writes the provided token sequences to a SPMF-compatible input file.
+            - Executes the TRuleGrowth algorithm with the specified hyperparameters.
+            - Parses the resulting rules file into structured rule dictionaries.
+            - Optionally decodes integer token IDs into human-readable tokens.
+
+        Args:
+            sequences (List[List[int]]): A list of tokenized sequences (each as a list of integer
+                token IDs).
+                This input must follow the same structure as the EmailTemplateEncoder output.
+            minsup (float): Minimum support threshold (e.g. 0.01 = 1% of sequences).
+            minconf (float): Minimum confidence threshold (between 0.0 and 1.0).
+            window_size (int): Maximum number of steps between LHS and RHS in a sequence.
+            decode (bool): If True, convert integer token IDs to readable token strings using the
+                encoder.
+
+        Returns:
+            List[Dict[str, Any]]: A list of rule dictionaries, each containing:
+                - 'lhs' or 'lhs_tokens': List of antecedent tokens
+                - 'rhs' or 'rhs_tokens': List of consequent tokens
+                - 'support': int - number of matching sequences
+                - 'confidence': float - probability RHS follows LHS
+
+        Raises:
+            RuntimeError: If mining or parsing fails due to invalid configuration or file format.
+        """
+        input_path = self._write_input(sequences)
+        output_path = self._run_trulegrowth(
+            input_path, minsup=minsup, minconf=minconf, window_size=window_size
+        )
+        rules = self._parse_rules(output_path)
+        return [self._decode_rule(r) for r in rules] if decode else rules
