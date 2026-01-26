@@ -1,0 +1,30 @@
+// Prisma schema for IRP frontend autocomplete + domain API
+
+// Prisma Client generator (outputs to src/generated/prisma)
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// PostgreSQL connection
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//  Data Models
+
+// Represents an investment firm
+model Firm {
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  domains Domain[]  // one-to-many relationship
+}
+
+// Represents a domain used by a firm (e.g., sequoiacap.com)
+model Domain {
+  id        Int    @id @default(autoincrement())
+  domain    String
+  firmId    Int
+  firm      Firm   @relation(fields: [firmId], references: [id])
+}

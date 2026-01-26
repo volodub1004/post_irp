@@ -1,0 +1,34 @@
+QUICK FIX: Remove API Key from Git History
+
+The easiest solution is to use GitHub's allow URL:
+
+1. Visit this URL in your browser:
+   https://github.com/volodub1004/post_irp/security/secret-scanning/unblock-secret/38lvUsYsmyIaoJOiX7tymRMMC68
+
+2. Click "Allow" to temporarily allow the secret
+
+3. Then push:
+   git push --force origin main
+
+4. IMPORTANT: After pushing, you MUST:
+   - Go to OpenAI dashboard
+   - Revoke the exposed key (check OpenAI dashboard - key was in Benchmarking.ipynb)
+   - Generate a new API key
+   - Update any systems using the old key
+
+ALTERNATIVE: Create Fresh History
+
+If you want to completely remove the secret from history:
+
+1. Create a backup:
+   Copy the entire post_irp folder
+
+2. Create new orphan branch:
+   git checkout --orphan new-main
+   git add .
+   git commit -m "Initial commit - cleaned history"
+   git branch -D main
+   git branch -m main
+   git push --force origin main
+
+This creates a completely fresh history without the secret.

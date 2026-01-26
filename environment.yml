@@ -1,0 +1,15 @@
+name: irp-db1724
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pytest
+  - sqlite
+  - ipython
+  - cmake
+  - ninja
+  - conan>=2.0
+  - pip
+  - pip:
+    - poetry

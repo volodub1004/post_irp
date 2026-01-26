@@ -1,0 +1,39 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.12
+          activate-environment: irp-db1724
+          environment-file: environment.yml
+
+      - name: Install Poetry
+        run: |
+          conda run -n irp-db1724 pip install poetry
+
+      - name: Install Python dependencies
+        run: |
+          conda run -n irp-db1724 poetry install --no-interaction --no-ansi
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check SQLite version
+        run: sqlite3 --version
+
+      - name: Run pytest
+        run: |
+          conda run -n irp-db1724 pytest -q
